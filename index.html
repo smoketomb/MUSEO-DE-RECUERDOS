@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mi Museo de Recuerdos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@hyperjump/json-schema"></script>
+    </head>
+<body style="margin:0; text-align:center; font-family:sans-serif;">
+    <h2>📸 Enfoca un recuerdo</h2>
+    <video id="webcam" autoplay playsinline width="100%"></video>
+    <div id="resultado" style="padding:20px; font-weight:bold;">Buscando...</div>
+
+    <script>
+        // CONFIGURACIÓN: Pega aquí tu ID de Google Sheets
+        const SHEET_ID = '1sL4myyPXLAErfO4c8aw1GyiKzzmV4iWiEHP04ofUra0'; 
+        const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+
+        async function buscarEnlace(etiqueta) {
+            const response = await fetch(SHEET_URL);
+            const data = await response.text();
+            const filas = data.split('\n').map(row => row.split(','));
+            
+            for (let i = 1; i < filas.length; i++) {
+                let obj = filas[i][0].replace(/"/g, "").trim();
+                let url = filas[i][1].replace(/"/g, "").trim();
+                if (obj === etiqueta) return url;
+            }
+            return null;
+        }
+
+        // Aquí iría la carga del modelo que descargaste de Colab
+        // async function loadModel() { ... }
+    </script>
+</body>
+</html>
