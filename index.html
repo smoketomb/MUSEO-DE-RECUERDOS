@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escáner de Recuerdos</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #camera-container { position: relative; width: 90%; max-width: 500px; aspect-ratio: 3/4; border: 4px solid #3498db; border-radius: 20px; overflow: hidden; box-shadow: 0 0 20px rgba(52, 152, 219, 0.5); }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #status { position: absolute; top: 10px; left: 0; width: 100%; text-align: center; background: rgba(0,0,0,0.6); padding: 5px 0; font-size: 14px; z-index: 10; }
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 2px solid rgba(255,255,255,0.2); box-sizing: border-box; pointer-events: none; }
+        #scan-line { position: absolute; width: 100%; height: 2px; background: #3498db; top: 0; box-shadow: 0 0 10px #3498db; animation: scan 3s infinite linear; }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+        .instructions { margin-top: 20px; text-align: center; padding: 0 20px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <div id="camera-container">
+        <div id="status">Iniciando cámara y modelo...</div>
+        <video id="video" autoplay playsinline muted></video>
+        <div class="overlay"></div>
+        <div id="scan-line"></div>
+    </div>
+
+    <div class="instructions">
+        <p id="hint">Apunta al objeto para ver su historia</p>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN (Cambia esto por tu ID de Google Sheets)
+        const SHEET_ID = '1sL4myyPXLAErfO4c8aw1GyiKzzmV4iWiEHP04ofUra0'; 
+        const MODEL_PATH = 'model.json'; // Ruta directa sin ./
+
+        const video = document.getElementById('video');
+        const status = document.getElementById('status');
+        let model;
+        let lastDetected = "";
+
+        // 1. Iniciar Cámara y Modelo
+        async function setup() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' }, 
+                    audio: false 
+                });
+                video.srcObject = stream;
+
+                status.innerText = "Cargando cerebro de IA...";
+                model = await tf.loadGraphModel(MODEL_PATH);
+                
+                status.innerText = "✅ IA Lista. Enfoca un objeto";
+                detect();
+            } catch (error) {
+                status.innerText = "❌ Error: " + error.message;
+                console.error(error);
+            }
+        }
+
+        // 2. Detección en tiempo real
+        async function detect() {
+            if (!model) return;
+
+            const tfImg = tf.browser.fromPixels(video);
+            const smallImg = tf.image.resizeBilinear(tfImg, [640, 640]).div(255.0).expandDims(0);
+            
+            const result = await model.executeAsync(smallImg);
+            const predictions = await result[0].array(); // Ajusta según tu modelo YOLO
+
+            // Lógica simplificada de detección (Umbral 80%)
+            // Aquí asumimos que el modelo devuelve una clase detectada
+            // Si el modelo detecta algo con alta confianza:
+            // let label = "nombre_del_objeto"; 
+            // buscarEnExcel(label);
+
+            tfImg.dispose();
+            smallImg.dispose();
+            requestAnimationFrame(detect);
+        }
+
+        // 3. Buscar en Google Sheets y abrir link
+        async function buscarEnExcel(label) {
+            if (label === lastDetected) return;
+            lastDetected = label;
+
+            status.innerText = "🔍 Buscando: " + label;
+            
+            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.text();
+                const filas = data.split('\n');
+
+                for (let fila of filas) {
+                    const columnas = fila.split(',');
+                    const idExcel = columnas[0].replace(/"/g, '').trim();
+                    const linkExcel = columnas[1].replace(/"/g, '').trim();
+
+                    if (idExcel.toLowerCase() === label.toLowerCase()) {
+                        status.innerText = "🚀 ¡Encontrado! Abriendo...";
+                        window.location.href = linkExcel;
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.error("Error leyendo Excel", e);
+            }
+        }
+
+        setup();
+    </script>
+</body>
+</html>
